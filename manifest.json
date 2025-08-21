@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "HireHeat",
+  "version": "1.0",
+  "description": "See the real competition heat for LinkedIn job postings - view actual application counts, views, and apply rates",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.linkedin.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.linkedin.com/*"],
+      "js": ["linkedin-tracker.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "HireHeat - Job Competition Tracker"
+  }
+}
