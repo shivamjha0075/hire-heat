@@ -1,78 +1,80 @@
 document.addEventListener('DOMContentLoaded', function() {
-  loadStats();
+  checkExtensionStatus();
   
-  document.getElementById('clearData').addEventListener('click', clearAllData);
+  const activateBtn = document.getElementById('activateBtn');
+  if (activateBtn) {
+    activateBtn.addEventListener('click', toggleExtension);
+  }
 });
 
-function loadStats() {
-  chrome.storage.local.get(null, function(data) {
-    const jobs = Object.keys(data).filter(key => data[key].applies !== undefined);
-    const totalJobs = jobs.length;
-    const totalApplies = jobs.reduce((sum, jobId) => sum + data[jobId].applies, 0);
+function checkExtensionStatus() {
+  // First check the extension's active state
+  chrome.storage.local.get(['hireHeatActive'], function(result) {
+    const isActive = result.hireHeatActive !== false; // Default to true if not set
     
-    document.getElementById('totalJobs').textContent = totalJobs;
-    document.getElementById('totalClicks').textContent = totalApplies;
-    
-    displayJobList(data, jobs);
-  });
-}
-
-function displayJobList(data, jobs) {
-  const jobList = document.getElementById('jobList');
-  jobList.innerHTML = '';
-  
-  if (jobs.length === 0) {
-    jobList.innerHTML = '<div class="job-item">No jobs tracked yet. Visit LinkedIn job postings to start seeing application data!</div>';
-    return;
-  }
-  
-  // Sort jobs by apply count (descending)
-  jobs.sort((a, b) => data[b].applies - data[a].applies);
-  
-  jobs.forEach(jobId => {
-    const job = data[jobId];
-    const jobItem = document.createElement('div');
-    jobItem.className = 'job-item';
-    
-    const lastUpdated = job.lastUpdated ? new Date(job.lastUpdated).toLocaleDateString() : 'Unknown';
-    const applyRate = job.views > 0 ? ((job.applies / job.views) * 100) : 0;
-    
-    // Determine heat level
-    let heatEmoji, heatText, heatColor;
-    if (applyRate < 5) {
-      heatEmoji = '❄️';
-      heatText = 'COLD';
-      heatColor = '#22c55e';
-    } else if (applyRate < 15) {
-      heatEmoji = '🔥';
-      heatText = 'WARM';
-      heatColor = '#f59e0b';
-    } else {
-      heatEmoji = '🌡️';
-      heatText = 'HOT';
-      heatColor = '#ef4444';
-    }
-    
-    jobItem.innerHTML = `
-      <div class="job-title">${job.title || 'Unknown Job'}</div>
-      <div class="job-stats">
-        <span>${job.applies} applies</span> • 
-        <span>${job.views} views</span> • 
-        <span style="color: ${heatColor}; font-weight: 600;">
-          ${heatEmoji} ${heatText} (${applyRate.toFixed(1)}%)
-        </span>
-      </div>
-      <div class="job-date">Updated: ${lastUpdated}</div>
-    `;
-    
-    jobList.appendChild(jobItem);
-  });
-}
-
-function clearAllData() {
-  if (confirm('Are you sure you want to clear all tracking data? This cannot be undone.')) {
-    chrome.storage.local.clear(function() {
-      loadStats();
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      const currentTab = tabs[0];
+      const statusText = document.getElementById('statusText');
+      const activateBtn = document.getElementById('activateBtn');
+      
+      if (currentTab.url.includes('linkedin.com')) {
+        if (isActive) {
+          statusText.textContent = 'HireHeat is active on LinkedIn';
+          activateBtn.textContent = 'Deactivate HireHeat';
+          activateBtn.className = 'deactivate-btn';
+        } else {
+          statusText.textContent = 'HireHeat is inactive - click to activate';
+          activateBtn.textContent = 'Activate HireHeat';
+          activateBtn.className = 'activate-btn';
+        }
+        activateBtn.disabled = false;
+      } else {
+        statusText.textContent = 'Navigate to LinkedIn to use HireHeat';
+        activateBtn.textContent = 'Go to LinkedIn';
+        activateBtn.className = 'navigate-btn';
+        activateBtn.disabled = false;
+      }
     });
-  }
+  });
+}
+
+function toggleExtension() {
+  chrome.storage.local.get(['hireHeatActive'], function(result) {
+    const isCurrentlyActive = result.hireHeatActive !== false;
+    
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      const currentTab = tabs[0];
+      const statusText = document.getElementById('statusText');
+      const activateBtn = document.getElementById('activateBtn');
+      
+      if (currentTab.url.includes('linkedin.com')) {
+        if (isCurrentlyActive) {
+          // Deactivate
+          chrome.storage.local.set({hireHeatActive: false}, function() {
+            chrome.tabs.sendMessage(currentTab.id, {type: 'DEACTIVATE_HIREHEAT'});
+            statusText.textContent = 'HireHeat deactivated';
+            activateBtn.textContent = 'Activate HireHeat';
+            activateBtn.className = 'activate-btn';
+          });
+        } else {
+          // Activate
+          chrome.storage.local.set({hireHeatActive: true}, function() {
+            chrome.tabs.sendMessage(currentTab.id, {type: 'ACTIVATE_HIREHEAT'}, function(response) {
+              if (chrome.runtime.lastError) {
+                statusText.textContent = 'Please reload the LinkedIn page';
+                activateBtn.textContent = 'Reload Required';
+              } else {
+                statusText.textContent = 'HireHeat activated!';
+                activateBtn.textContent = 'Deactivate HireHeat';
+                activateBtn.className = 'deactivate-btn';
+              }
+            });
+          });
+        }
+      } else {
+        // Navigate to LinkedIn
+        chrome.tabs.update(currentTab.id, {url: 'https://www.linkedin.com/jobs/'});
+      }
+    });
+  });
 }

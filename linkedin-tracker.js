@@ -1,5 +1,23 @@
-// HireHeat - Job Competition Tracker
-console.log('� HirkeHeat - Tracking job competition heat');
+// HireHeat - Job Competition Tracker v2.0
+console.log('🔥 HireHeat v2.0 - Advanced job competition tracking');
+
+// Global settings
+let settings = {
+  trackingEnabled: true,
+  autoRefresh: true,
+  refreshInterval: 30000,
+  showNotifications: true,
+  coldThreshold: 5,
+  hotThreshold: 15
+};
+
+// Load settings from storage
+chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
+  if (response) {
+    settings = { ...settings, ...response };
+    console.log('⚙️ Settings loaded:', settings);
+  }
+});
 
 // Suppress the chrome-extension://invalid/ error spam
 const originalConsoleError = console.error;
@@ -22,10 +40,41 @@ console.warn = function (...args) {
   originalConsoleWarn.apply(console, args);
 };
 
-// Get job ID from URL
+// Get job ID from URL - Updated to handle multiple LinkedIn URL patterns
 function getJobId() {
-  const match = window.location.href.match(/currentJobId=(\d+)/);
-  return match ? match[1] : null;
+  const url = window.location.href;
+  console.log('🔍 Checking URL for job ID:', url);
+  
+  // Pattern 1: currentJobId parameter
+  let match = url.match(/currentJobId=(\d+)/);
+  if (match) {
+    console.log('✅ Found job ID via currentJobId:', match[1]);
+    return match[1];
+  }
+  
+  // Pattern 2: /jobs/view/[jobId]
+  match = url.match(/\/jobs\/view\/(\d+)/);
+  if (match) {
+    console.log('✅ Found job ID via /jobs/view/:', match[1]);
+    return match[1];
+  }
+  
+  // Pattern 3: /jobs/collections/recommended/?currentJobId=
+  match = url.match(/\/jobs\/collections\/.*currentJobId=(\d+)/);
+  if (match) {
+    console.log('✅ Found job ID via collections currentJobId:', match[1]);
+    return match[1];
+  }
+  
+  // Pattern 4: Hash-based routing #/jobs/view/[jobId]
+  match = url.match(/#.*\/jobs\/view\/(\d+)/);
+  if (match) {
+    console.log('✅ Found job ID via hash routing:', match[1]);
+    return match[1];
+  }
+  
+  console.log('❌ No job ID found in URL');
+  return null;
 }
 
 // Show loading state
@@ -107,16 +156,16 @@ function showJobStats(jobData) {
   // Create stats display
   const statsElement = document.createElement('div');
   statsElement.id = 'job-stats-display';
-  // Calculate heat level based on apply rate
+  // Calculate heat level based on apply rate and user settings
   const applyRate = jobData.views > 0 ? ((jobData.applies / jobData.views) * 100) : 0;
   let heatLevel, heatColor, heatEmoji, heatText;
 
-  if (applyRate < 5) {
+  if (applyRate < settings.coldThreshold) {
     heatLevel = 'COLD';
     heatColor = 'linear-gradient(135deg, #4ade80, #22c55e)';
     heatEmoji = '❄️';
     heatText = 'Low Competition';
-  } else if (applyRate < 15) {
+  } else if (applyRate < settings.hotThreshold) {
     heatLevel = 'WARM';
     heatColor = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
     heatEmoji = '🔥';
@@ -221,67 +270,146 @@ function showJobStats(jobData) {
 async function fetchJobData(jobId) {
   if (!jobId) return null;
 
-  const apiUrl = `https://www.linkedin.com/voyager/api/jobs/jobPostings/${jobId}?decorationId=com.linkedin.voyager.deco.jobs.web.shared.WebFullJobPosting-65&topN=1&topNRequestedFlavors=List(TOP_APPLICANT,IN_NETWORK,COMPANY_RECRUIT,SCHOOL_RECRUIT,HIDDEN_GEM,ACTIVELY_HIRING_COMPANY)`;
+  console.log('🔄 Attempting to fetch job data for:', jobId);
 
-  console.log('🔄 Making direct API call for job:', jobId);
+  // Try multiple API endpoints and approaches
+  const endpoints = [
+    // Modern LinkedIn API endpoint
+    `https://www.linkedin.com/voyager/api/jobs/jobPostings/${jobId}?decorationId=com.linkedin.voyager.deco.jobs.web.shared.WebFullJobPosting-65`,
+    // Alternative endpoint
+    `https://www.linkedin.com/voyager/api/jobs/jobPostings/${jobId}`,
+    // Older endpoint format
+    `https://www.linkedin.com/voyager/api/jobs/jobPostings/${jobId}?decorationId=com.linkedin.voyager.deco.jobs.web.shared.WebFullJobPosting-23`
+  ];
 
-  try {
-    // Get CSRF token from cookies
-    const csrfToken = document.cookie.match(/JSESSIONID="([^"]+)"/)?.[1] || 'ajax:0500620337376533791';
+  for (let i = 0; i < endpoints.length; i++) {
+    const apiUrl = endpoints[i];
+    console.log(`🔄 Trying endpoint ${i + 1}:`, apiUrl);
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'accept': 'application/vnd.linkedin.normalized+json+2.1',
-        'csrf-token': csrfToken,
-        'x-restli-protocol-version': '2.0.0',
-        'x-li-lang': 'en_US'
-      },
-      credentials: 'include'
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log('📊 Direct API success');
-
-      if (data && data.data && typeof data.data.applies === 'number') {
-        console.log('✅ Found job data:', {
-          applies: data.data.applies,
-          views: data.data.views,
-          title: data.data.title
-        });
-
-        const jobData = {
-          applies: data.data.applies,
-          views: data.data.views || 0,
-          title: data.data.title,
-          jobId: jobId,
-          lastUpdated: Date.now(),
-          url: window.location.href
-        };
-
-        showJobStats(jobData);
-
-        // Store for popup
-        storeJobData(jobData);
-
-        return data.data;
+    try {
+      // Get CSRF token from multiple sources
+      let csrfToken = null;
+      
+      // Try to get from JSESSIONID cookie
+      const jsessionMatch = document.cookie.match(/JSESSIONID="([^"]+)"/);
+      if (jsessionMatch) {
+        csrfToken = jsessionMatch[1];
       }
-    } else {
-      console.log('❌ API call failed:', response.status);
+      
+      // Try to get from csrf-token meta tag
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      if (csrfMeta && !csrfToken) {
+        csrfToken = csrfMeta.getAttribute('content');
+      }
+      
+      // Fallback token
+      if (!csrfToken) {
+        csrfToken = 'ajax:' + Math.random().toString(36).substring(2, 15);
+      }
+      
+      console.log('🔑 Using CSRF token:', csrfToken.substring(0, 10) + '...');
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/vnd.linkedin.normalized+json+2.1',
+          'csrf-token': csrfToken,
+          'x-restli-protocol-version': '2.0.0',
+          'x-li-lang': 'en_US',
+          'x-requested-with': 'XMLHttpRequest'
+        },
+        credentials: 'include'
+      });
+
+      console.log(`📡 Response status for endpoint ${i + 1}:`, response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 API response received:', Object.keys(data));
+
+        // Try different data structure patterns
+        let jobData = null;
+        
+        // Pattern 1: data.data structure
+        if (data && data.data && typeof data.data.applies === 'number') {
+          jobData = {
+            applies: data.data.applies,
+            views: data.data.views || 0,
+            title: data.data.title || 'LinkedIn Job',
+            jobId: jobId,
+            lastUpdated: Date.now(),
+            url: window.location.href
+          };
+        }
+        // Pattern 2: direct data structure
+        else if (data && typeof data.applies === 'number') {
+          jobData = {
+            applies: data.applies,
+            views: data.views || 0,
+            title: data.title || 'LinkedIn Job',
+            jobId: jobId,
+            lastUpdated: Date.now(),
+            url: window.location.href
+          };
+        }
+        // Pattern 3: nested in elements
+        else if (data && data.elements && data.elements[0]) {
+          const element = data.elements[0];
+          if (typeof element.applies === 'number') {
+            jobData = {
+              applies: element.applies,
+              views: element.views || 0,
+              title: element.title || 'LinkedIn Job',
+              jobId: jobId,
+              lastUpdated: Date.now(),
+              url: window.location.href
+            };
+          }
+        }
+
+        if (jobData) {
+          console.log('✅ Successfully extracted job data:', {
+            applies: jobData.applies,
+            views: jobData.views,
+            title: jobData.title
+          });
+
+          showJobStats(jobData);
+          storeJobData(jobData);
+          return jobData;
+        } else {
+          console.log('⚠️ API response received but no job data found in expected format');
+          console.log('Raw data structure:', data);
+        }
+      } else {
+        console.log(`❌ API call failed for endpoint ${i + 1}:`, response.status, response.statusText);
+      }
+    } catch (error) {
+      console.log(`❌ API call error for endpoint ${i + 1}:`, error.message);
     }
-  } catch (error) {
-    console.log('❌ API call error');
   }
 
+  console.log('❌ All API endpoints failed');
   return null;
 }
 
-// Extract data from page scripts (more aggressive search)
+// Extract data from page scripts and DOM elements (comprehensive search)
 function extractFromPageScripts() {
-  console.log('🔍 Aggressive script search...');
+  console.log('🔍 Comprehensive data extraction starting...');
+  
+  const jobId = getJobId();
+  if (!jobId) {
+    console.log('❌ No job ID available for extraction');
+    return false;
+  }
 
-  // Look in all script tags for job data
+  // Method 1: Look for application count in DOM elements
+  console.log('🔍 Method 1: Searching DOM elements...');
+  const domResult = extractFromDOMElements();
+  if (domResult) return domResult;
+
+  // Method 2: Search through all script tags
+  console.log('🔍 Method 2: Searching script tags...');
   const scripts = document.querySelectorAll('script');
   console.log(`Searching ${scripts.length} scripts...`);
 
@@ -290,37 +418,75 @@ function extractFromPageScripts() {
     if (script.textContent) {
       const text = script.textContent;
 
-      // Look for various patterns that might contain job data
+      // Enhanced patterns for job data
       const patterns = [
-        /"applies":\s*(\d+)/g,
-        /"numApplicants":\s*(\d+)/g,
-        /"applicationCount":\s*(\d+)/g,
-        /"views":\s*(\d+)/g,
-        /"viewCount":\s*(\d+)/g
+        // Application patterns
+        /"applies":\s*(\d+)/gi,
+        /"numApplicants":\s*(\d+)/gi,
+        /"applicationCount":\s*(\d+)/gi,
+        /"applicantCount":\s*(\d+)/gi,
+        /"totalApplicants":\s*(\d+)/gi,
+        /applicants?["']?:\s*(\d+)/gi,
+        
+        // View patterns
+        /"views":\s*(\d+)/gi,
+        /"viewCount":\s*(\d+)/gi,
+        /"totalViews":\s*(\d+)/gi,
+        /views?["']?:\s*(\d+)/gi,
+        
+        // LinkedIn specific patterns
+        /numApplicants["']?:\s*["']?(\d+)/gi,
+        /applicantCount["']?:\s*["']?(\d+)/gi
       ];
 
       let applies = null;
       let views = null;
+      let title = null;
 
+      // Extract job title
+      const titlePatterns = [
+        /"title":\s*"([^"]+)"/gi,
+        /"jobTitle":\s*"([^"]+)"/gi,
+        /"formattedTitle":\s*"([^"]+)"/gi
+      ];
+      
+      titlePatterns.forEach(pattern => {
+        const match = pattern.exec(text);
+        if (match && !title) {
+          title = match[1];
+        }
+      });
+
+      // Extract numeric data
       patterns.forEach(pattern => {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
           const value = parseInt(match[1]);
-          if (pattern.source.includes('appli')) {
+          if (isNaN(value)) return;
+          
+          const patternStr = pattern.source.toLowerCase();
+          if (patternStr.includes('appli') && applies === null) {
             applies = value;
-          } else if (pattern.source.includes('view')) {
+            console.log(`📊 Found applies in script ${i}:`, value);
+          } else if (patternStr.includes('view') && views === null) {
             views = value;
+            console.log(`👁️ Found views in script ${i}:`, value);
           }
         });
       });
 
       if (applies !== null) {
-        console.log(`✅ Found applies in script ${i}:`, applies, 'views:', views);
+        console.log(`✅ Successfully extracted from script ${i}:`, {
+          applies,
+          views: views || 0,
+          title: title || 'LinkedIn Job'
+        });
+        
         const jobData = {
           applies: applies,
           views: views || 0,
-          jobId: getJobId(),
-          title: 'Job from page script',
+          jobId: jobId,
+          title: title || 'LinkedIn Job',
           lastUpdated: Date.now(),
           url: window.location.href
         };
@@ -332,56 +498,438 @@ function extractFromPageScripts() {
     }
   }
 
+  // Method 3: Try to extract from window objects
+  console.log('🔍 Method 3: Searching window objects...');
+  return extractFromWindowObjects();
+}
+
+// Extract from DOM elements that might contain application counts
+function extractFromDOMElements() {
+  const selectors = [
+    // Common selectors for application counts
+    '[data-test-id*="applicant"]',
+    '[class*="applicant"]',
+    '[class*="application"]',
+    '.jobs-unified-top-card__applicant-count',
+    '.jobs-details-top-card__applicant-count',
+    '.job-details-jobs-unified-top-card__primary-description-container',
+    '[aria-label*="applicant"]',
+    '[aria-label*="application"]',
+    // Text-based searches
+    '*'
+  ];
+
+  for (const selector of selectors) {
+    try {
+      const elements = document.querySelectorAll(selector);
+      for (const element of elements) {
+        const text = element.textContent || element.innerText || '';
+        
+        // Look for patterns like "X applicants", "X applications", etc.
+        const matches = text.match(/(\d+)\s*(?:applicants?|applications?)/i);
+        if (matches) {
+          const applies = parseInt(matches[1]);
+          console.log('✅ Found applicant count in DOM:', applies, 'from element:', element.tagName);
+          
+          const jobData = {
+            applies: applies,
+            views: 0,
+            jobId: getJobId(),
+            title: document.title || 'LinkedIn Job',
+            lastUpdated: Date.now(),
+            url: window.location.href
+          };
+
+          showJobStats(jobData);
+          storeJobData(jobData);
+          return true;
+        }
+      }
+    } catch (e) {
+      // Continue with next selector
+    }
+  }
+  
+  return false;
+}
+
+// Extract from window objects that LinkedIn might expose
+function extractFromWindowObjects() {
+  try {
+    // Check if LinkedIn exposes any global data
+    const windowKeys = Object.keys(window);
+    const linkedinKeys = windowKeys.filter(key => 
+      key.toLowerCase().includes('linkedin') || 
+      key.toLowerCase().includes('voyager') ||
+      key.toLowerCase().includes('job')
+    );
+    
+    console.log('🔍 Found LinkedIn-related window objects:', linkedinKeys);
+    
+    // This is a basic implementation - LinkedIn's actual data structure may vary
+    for (const key of linkedinKeys) {
+      try {
+        const obj = window[key];
+        if (obj && typeof obj === 'object') {
+          const jsonStr = JSON.stringify(obj);
+          const appliesMatch = jsonStr.match(/"applies":(\d+)/i);
+          if (appliesMatch) {
+            const applies = parseInt(appliesMatch[1]);
+            console.log('✅ Found applies in window object:', key, applies);
+            
+            const jobData = {
+              applies: applies,
+              views: 0,
+              jobId: getJobId(),
+              title: 'LinkedIn Job',
+              lastUpdated: Date.now(),
+              url: window.location.href
+            };
+
+            showJobStats(jobData);
+            storeJobData(jobData);
+            return true;
+          }
+        }
+      } catch (e) {
+        // Continue with next key
+      }
+    }
+  } catch (e) {
+    console.log('❌ Error searching window objects:', e.message);
+  }
+  
   return false;
 }
 
 // Monitor job changes and fetch data
 let currentJobId = getJobId();
 let lastProcessedJob = null;
+let processingInProgress = false;
+let retryCount = 0;
+const MAX_RETRIES = 3;
+let isExtensionActive = true; // Default to active
+
+// Extension state management
+function getExtensionState() {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['hireHeatActive'], (result) => {
+        const isActive = result.hireHeatActive !== false; // Default to true if not set
+        isExtensionActive = isActive;
+        resolve(isActive);
+      });
+    } else {
+      // Fallback if chrome.storage is not available
+      isExtensionActive = true;
+      resolve(true);
+    }
+  });
+}
+
+function setExtensionState(active) {
+  isExtensionActive = active;
+  chrome.storage.local.set({ hireHeatActive: active }, () => {
+    logActivity(`🔄 Extension state changed to: ${active ? 'ACTIVE' : 'INACTIVE'}`, 'info');
+  });
+}
+
+// Activity monitoring
+let activityLog = [];
+function logActivity(message, type = 'info') {
+  const timestamp = new Date().toLocaleTimeString();
+  const logEntry = { timestamp, message, type };
+  activityLog.push(logEntry);
+  
+  // Keep only last 50 entries
+  if (activityLog.length > 50) {
+    activityLog = activityLog.slice(-50);
+  }
+  
+  console.log(`[${timestamp}] ${message}`);
+}
 
 function processJobChange() {
+  // Check if extension is active before processing
+  if (!isExtensionActive) {
+    logActivity('🔇 Extension is inactive, skipping job processing', 'info');
+    return;
+  }
+  
   const jobId = getJobId();
 
-  if (jobId && jobId !== lastProcessedJob) {
-    console.log('🎯 Processing job:', jobId);
-    lastProcessedJob = jobId;
+  if (!jobId) {
+    logActivity('❌ No job ID found in current URL', 'error');
+    return;
+  }
 
-    // Show loading state immediately
-    showLoadingState();
+  if (jobId === lastProcessedJob && !processingInProgress) {
+    logActivity(`⏭️ Job ${jobId} already processed, skipping`, 'info');
+    return;
+  }
 
-    // Try multiple approaches with a slight delay for better UX
-    setTimeout(async () => {
-      // 1. Try direct API call
-      const apiData = await fetchJobData(jobId);
+  if (processingInProgress) {
+    logActivity('⏳ Processing already in progress, waiting...', 'warning');
+    return;
+  }
 
-      if (!apiData) {
-        // 2. Try extracting from page scripts
-        const scriptData = extractFromPageScripts();
+  logActivity(`🎯 Starting to process job: ${jobId}`, 'info');
+  lastProcessedJob = jobId;
+  processingInProgress = true;
+  retryCount = 0;
 
-        if (!scriptData) {
-          console.log('❌ Could not get job data from any method');
-          showErrorState();
+  // Show loading state immediately
+  showLoadingState();
+
+  // Try multiple approaches with a slight delay for better UX
+  setTimeout(async () => {
+    await attemptDataExtraction(jobId);
+  }, 800);
+}
+
+async function attemptDataExtraction(jobId) {
+  logActivity(`🔄 Attempt ${retryCount + 1}/${MAX_RETRIES} for job ${jobId}`, 'info');
+  
+  try {
+    // 1. Try direct API call
+    logActivity('📡 Trying API extraction...', 'info');
+    const apiData = await fetchJobData(jobId);
+
+    if (apiData) {
+      logActivity('✅ API extraction successful', 'success');
+      processingInProgress = false;
+      return;
+    }
+
+    // 2. Try extracting from page scripts and DOM
+    logActivity('🔍 Trying script/DOM extraction...', 'info');
+    const scriptData = extractFromPageScripts();
+
+    if (scriptData) {
+      logActivity('✅ Script/DOM extraction successful', 'success');
+      processingInProgress = false;
+      return;
+    }
+
+    // 3. If all methods failed, retry or show error
+    retryCount++;
+    if (retryCount < MAX_RETRIES) {
+      logActivity(`⏳ Retrying in 2 seconds... (${retryCount}/${MAX_RETRIES})`, 'warning');
+      setTimeout(() => attemptDataExtraction(jobId), 2000);
+    } else {
+      logActivity('❌ All extraction methods failed after maximum retries', 'error');
+      showErrorState();
+      processingInProgress = false;
+    }
+  } catch (error) {
+    logActivity(`❌ Error during extraction: ${error.message}`, 'error');
+    processingInProgress = false;
+    showErrorState();
+  }
+}
+
+// Enhanced job change detection
+let urlCheckInterval;
+let domObserver;
+
+function startMonitoring() {
+  logActivity('🚀 Starting HireHeat monitoring system', 'info');
+  
+  // Method 1: URL polling (more frequent for SPA)
+  urlCheckInterval = setInterval(() => {
+    const newJobId = getJobId();
+    if (newJobId !== currentJobId) {
+      logActivity(`🔄 Job change detected: ${currentJobId} -> ${newJobId}`, 'info');
+      currentJobId = newJobId;
+      if (newJobId) {
+        processJobChange();
+      }
+    }
+  }, 500); // Check every 500ms for faster detection
+  
+  // Method 1.5: Listen for navigation events (LinkedIn SPA)
+  window.addEventListener('popstate', () => {
+    setTimeout(() => {
+      const newJobId = getJobId();
+      if (newJobId && newJobId !== currentJobId) {
+        logActivity(`🔄 Navigation detected new job: ${newJobId}`, 'info');
+        currentJobId = newJobId;
+        processJobChange();
+      }
+    }, 500);
+  });
+  
+  // Override pushState and replaceState to catch programmatic navigation
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+  
+  history.pushState = function(...args) {
+    originalPushState.apply(history, args);
+    setTimeout(() => {
+      const newJobId = getJobId();
+      if (newJobId && newJobId !== currentJobId) {
+        logActivity(`🔄 PushState detected new job: ${newJobId}`, 'info');
+        currentJobId = newJobId;
+        processJobChange();
+      }
+    }, 500);
+  };
+  
+  history.replaceState = function(...args) {
+    originalReplaceState.apply(history, args);
+    setTimeout(() => {
+      const newJobId = getJobId();
+      if (newJobId && newJobId !== currentJobId) {
+        logActivity(`🔄 ReplaceState detected new job: ${newJobId}`, 'info');
+        currentJobId = newJobId;
+        processJobChange();
+      }
+    }, 500);
+  };
+  
+  // Method 2: DOM observation for better responsiveness
+  if (typeof MutationObserver !== 'undefined') {
+    domObserver = new MutationObserver((mutations) => {
+      let shouldCheck = false;
+      
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          // Check if any added nodes might indicate a job page change
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node;
+              if (element.classList && (
+                element.classList.contains('jobs-details') ||
+                element.classList.contains('jobs-unified-top-card') ||
+                element.querySelector && element.querySelector('[data-job-id]')
+              )) {
+                shouldCheck = true;
+                break;
+              }
+            }
+          }
+        }
+      });
+      
+      if (shouldCheck) {
+        const newJobId = getJobId();
+        if (newJobId && newJobId !== currentJobId) {
+          logActivity(`🔄 DOM change detected new job: ${newJobId}`, 'info');
+          currentJobId = newJobId;
+          processJobChange();
         }
       }
-    }, 800);
+    });
+    
+    domObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    logActivity('👁️ DOM observer started', 'info');
   }
 }
 
-// Check for job changes
-setInterval(() => {
-  const newJobId = getJobId();
-  if (newJobId !== currentJobId) {
-    console.log('Job changed:', currentJobId, '->', newJobId);
-    currentJobId = newJobId;
-    processJobChange();
-  }
-}, 1000);
+// Initialize extension with proper timing and retry mechanism
+let initializationAttempts = 0;
+const MAX_INIT_ATTEMPTS = 3;
 
-// Process initial job
-console.log('Initial job ID:', currentJobId);
-if (currentJobId) {
-  processJobChange();
+async function initializeExtension() {
+  // Check extension state first
+  const isActive = await getExtensionState();
+  if (!isActive) {
+    logActivity('🔇 Extension is inactive, skipping initialization', 'info');
+    return;
+  }
+  
+  initializationAttempts++;
+  logActivity(`🔥 HireHeat extension initialized (attempt ${initializationAttempts})`, 'info');
+  
+  currentJobId = getJobId();
+  logActivity(`Initial job ID: ${currentJobId || 'none'}`, 'info');
+  
+  // Check if we're actually on LinkedIn
+  if (!window.location.href.includes('linkedin.com')) {
+    logActivity('❌ Not on LinkedIn, skipping initialization', 'warn');
+    return;
+  }
+  
+  if (currentJobId) {
+    // Wait a bit for page to fully load before processing
+    setTimeout(() => {
+      processJobChange();
+    }, 2000);
+  } else if (initializationAttempts < MAX_INIT_ATTEMPTS) {
+    // Retry initialization if no job ID found and we haven't exceeded max attempts
+    logActivity(`🔄 No job ID found, retrying initialization in 3 seconds...`, 'info');
+    setTimeout(initializeExtension, 3000);
+    return;
+  }
+  
+  // Start monitoring
+  startMonitoring();
+  
+  // Set up periodic health check
+  setInterval(async () => {
+    // Check if extension is active
+    const isActive = await getExtensionState();
+    if (!isActive) {
+      return; // Skip health check if extension is inactive
+    }
+    
+    if (window.location.href.includes('linkedin.com/jobs/') && !currentJobId) {
+      const newJobId = getJobId();
+      if (newJobId) {
+        logActivity(`🔄 Health check found job ID: ${newJobId}`, 'info');
+        currentJobId = newJobId;
+        processJobChange();
+      }
+    }
+  }, 10000); // Check every 10 seconds
 }
+
+// Multiple initialization strategies
+function startInitialization() {
+  // Strategy 1: Immediate if page is ready
+  if (document.readyState === 'complete') {
+    setTimeout(initializeExtension, 500);
+  }
+  // Strategy 2: Wait for DOMContentLoaded
+  else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(initializeExtension, 1000);
+    });
+  }
+  // Strategy 3: Wait for load event
+  else {
+    setTimeout(initializeExtension, 1500);
+  }
+  
+  // Strategy 4: Fallback initialization after delay
+  setTimeout(() => {
+    if (initializationAttempts === 0) {
+      logActivity('🔄 Fallback initialization triggered', 'info');
+      initializeExtension();
+    }
+  }, 5000);
+}
+
+startInitialization();
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  if (urlCheckInterval) clearInterval(urlCheckInterval);
+  if (domObserver) domObserver.disconnect();
+  logActivity('🛑 HireHeat monitoring stopped', 'info');
+});
+
+// Expose activity log for debugging
+window.HireHeatDebug = {
+  getActivityLog: () => activityLog,
+  getCurrentJobId: () => currentJobId,
+  forceProcess: () => processJobChange(),
+  clearLog: () => { activityLog = []; }
+};
 
 // Show error state when data can't be loaded
 function showErrorState() {
@@ -389,39 +937,98 @@ function showErrorState() {
   const existing = document.querySelector('#job-stats-display');
   if (existing) existing.remove();
 
-  // Create error element
+  // Create error element with enhanced debugging
   const errorElement = document.createElement('div');
   errorElement.id = 'job-stats-display';
   errorElement.innerHTML = `
     <div style="
-      background: linear-gradient(135deg, #6b7280, #4b5563);
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
       color: white;
       padding: 18px;
       border-radius: 12px;
       margin: 16px 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.3);
       border: 2px solid rgba(255, 255, 255, 0.2);
     ">
       <div style="
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 8px;
+        gap: 12px;
+        margin-bottom: 12px;
         font-size: 16px;
         font-weight: 600;
       ">
         <span style="font-size: 20px;">⚠️</span>
-        <span>HireHeat - Data temporarily unavailable</span>
+        <span>🔥 HireHeat - Data Unavailable</span>
       </div>
+      
       <div style="
-        text-align: center;
-        margin-top: 8px;
-        font-size: 12px;
-        opacity: 0.8;
+        font-size: 14px;
+        line-height: 1.4;
+        opacity: 0.9;
+        margin-bottom: 16px;
       ">
-        Try refreshing the page or switching to another job
+        Unable to fetch job competition data. This might be due to:
+        <ul style="margin: 8px 0; padding-left: 20px;">
+          <li>LinkedIn's updated security measures</li>
+          <li>Changes to their API structure</li>
+          <li>Network connectivity issues</li>
+          <li>Job page not fully loaded</li>
+        </ul>
       </div>
+      
+      <div style="
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      ">
+        <button id="retry-fetch" style="
+          background: rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          color: white;
+          padding: 8px 16px;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          font-weight: 500;
+        ">🔄 Retry</button>
+        
+        <button id="debug-info" style="
+          background: rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          color: white;
+          padding: 8px 16px;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          font-weight: 500;
+        ">🐛 Debug Info</button>
+        
+        <button id="force-extract" style="
+          background: rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          color: white;
+          padding: 8px 16px;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          font-weight: 500;
+        ">🔍 Force Extract</button>
+      </div>
+      
+      <div id="debug-output" style="
+        display: none;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 12px;
+        border-radius: 6px;
+        font-family: monospace;
+        font-size: 11px;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      "></div>
     </div>
   `;
 
@@ -437,20 +1044,245 @@ function showErrorState() {
     if (target) {
       target.insertBefore(errorElement, target.firstChild);
       console.log('⚠️ Error state displayed');
+      
+      // Add event listeners for buttons
+      setupErrorStateButtons();
       return;
     }
   }
 }
 
-// Store job data for popup
+// Setup button functionality for error state
+function setupErrorStateButtons() {
+  const retryBtn = document.getElementById('retry-fetch');
+  const debugBtn = document.getElementById('debug-info');
+  const forceBtn = document.getElementById('force-extract');
+  
+  if (retryBtn) {
+    retryBtn.addEventListener('click', () => {
+      console.log('🔄 Manual retry triggered');
+      processJobChange();
+    });
+  }
+  
+  if (debugBtn) {
+    debugBtn.addEventListener('click', () => {
+      const debugOutput = document.getElementById('debug-output');
+      if (debugOutput) {
+        if (debugOutput.style.display === 'none') {
+          debugOutput.style.display = 'block';
+          debugOutput.textContent = generateDebugInfo();
+          debugBtn.textContent = '🐛 Hide Debug';
+        } else {
+          debugOutput.style.display = 'none';
+          debugBtn.textContent = '🐛 Debug Info';
+        }
+      }
+    });
+  }
+  
+  if (forceBtn) {
+    forceBtn.addEventListener('click', () => {
+      console.log('🔍 Force extraction triggered');
+      forceDataExtraction();
+    });
+  }
+}
+
+// Generate comprehensive debug information
+function generateDebugInfo() {
+  const jobId = getJobId();
+  const url = window.location.href;
+  const userAgent = navigator.userAgent;
+  const cookies = document.cookie;
+  
+  let debugInfo = `🔥 HireHeat Debug Information\n`;
+  debugInfo += `=================================\n\n`;
+  debugInfo += `URL: ${url}\n`;
+  debugInfo += `Job ID: ${jobId || 'NOT FOUND'}\n`;
+  debugInfo += `User Agent: ${userAgent}\n`;
+  debugInfo += `Has Cookies: ${cookies ? 'Yes' : 'No'}\n`;
+  debugInfo += `CSRF Token Available: ${document.cookie.includes('JSESSIONID') ? 'Yes' : 'No'}\n\n`;
+  
+  // Check for common LinkedIn elements
+  const commonSelectors = [
+    '.jobs-details-top-card__content',
+    '.jobs-unified-top-card__content',
+    '.job-details-jobs-unified-top-card__container',
+    '[data-test-id*="applicant"]',
+    '[class*="applicant"]'
+  ];
+  
+  debugInfo += `DOM Elements Check:\n`;
+  commonSelectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    debugInfo += `${selector}: ${elements.length} found\n`;
+  });
+  
+  debugInfo += `\nScript Tags: ${document.querySelectorAll('script').length}\n`;
+  debugInfo += `Extension Loaded: ${typeof chrome !== 'undefined' ? 'Yes' : 'No'}\n`;
+  debugInfo += `Storage Available: ${typeof chrome !== 'undefined' && chrome.storage ? 'Yes' : 'No'}\n`;
+  
+  return debugInfo;
+}
+
+// Force data extraction using all available methods
+function forceDataExtraction() {
+  console.log('🔍 Force extraction starting...');
+  
+  // Try a more aggressive DOM search
+  const allElements = document.querySelectorAll('*');
+  console.log(`Searching ${allElements.length} DOM elements...`);
+  
+  for (const element of allElements) {
+    const text = element.textContent || element.innerText || '';
+    
+    // Look for any number followed by "applicant" or "application"
+    const matches = text.match(/(\d+)\s*(?:applicants?|applications?|people\s+applied)/i);
+    if (matches && matches[1]) {
+      const applies = parseInt(matches[1]);
+      if (applies > 0 && applies < 100000) { // Reasonable range
+        console.log('✅ Force extraction found:', applies, 'from text:', text.substring(0, 100));
+        
+        const jobData = {
+          applies: applies,
+          views: 0,
+          jobId: getJobId() || 'unknown',
+          title: document.title || 'LinkedIn Job',
+          lastUpdated: Date.now(),
+          url: window.location.href,
+          extractionMethod: 'force'
+        };
+
+        showJobStats(jobData);
+        storeJobData(jobData);
+        return;
+      }
+    }
+  }
+  
+  console.log('❌ Force extraction failed - no data found');
+  alert('Force extraction completed but no job data was found. The page might not contain application counts or they may be loaded dynamically.');
+}
+
+// Listen for messages from popup or background
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'GET_JOB_DATA') {
+    const jobId = getJobId();
+    if (jobId) {
+      chrome.storage.local.get([jobId], (result) => {
+        sendResponse(result[jobId] || null);
+      });
+    } else {
+      sendResponse(null);
+    }
+    return true; // Keep message channel open for async response
+  } else if (message.type === 'ACTIVATE_HIREHEAT') {
+    logActivity('🔥 HireHeat activated via popup', 'info');
+    setExtensionState(true);
+    
+    // Force process current job if on a job page
+    const jobId = getJobId();
+    if (jobId) {
+      logActivity(`🎯 Processing job ${jobId} after activation`, 'info');
+      processJobChange();
+      sendResponse({ success: true, message: 'HireHeat activated and processing job' });
+    } else {
+      logActivity('ℹ️ HireHeat activated but not on a job page', 'info');
+      sendResponse({ success: true, message: 'HireHeat activated - navigate to a job posting to see data' });
+    }
+    return true;
+  } else if (message.type === 'DEACTIVATE_HIREHEAT') {
+    logActivity('🔇 HireHeat deactivated via popup', 'info');
+    setExtensionState(false);
+    
+    // Remove any existing HireHeat displays
+    const existing = document.querySelector('#job-stats-display');
+    if (existing) {
+      existing.remove();
+      logActivity('🧹 Removed HireHeat display from page', 'info');
+    }
+    
+    sendResponse({ success: true, message: 'HireHeat deactivated' });
+    return true;
+  }
+});
+
+// Store job data for popup and notify background
 function storeJobData(jobData) {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     chrome.storage.local.set({
       [jobData.jobId]: jobData
     }, () => {
       console.log('📦 Job data stored for popup');
+      
+      // Notify background script
+      chrome.runtime.sendMessage({
+        type: 'JOB_DATA_UPDATED',
+        data: jobData
+      });
+      
+      // Show notification for cold jobs if enabled
+      if (settings.showNotifications && jobData.views > 0) {
+        const applyRate = (jobData.applies / jobData.views) * 100;
+        if (applyRate < settings.coldThreshold) {
+          showColdJobNotification(jobData, applyRate);
+        }
+      }
     });
   }
+}
+
+// Show notification for cold jobs
+function showColdJobNotification(jobData, applyRate) {
+  // Create a subtle in-page notification
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(34, 197, 94, 0.3);
+    z-index: 10000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    max-width: 300px;
+    animation: slideIn 0.3s ease-out;
+  `;
+  
+  notification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <span style="font-size: 18px;">❄️</span>
+      <strong>Cold Job Alert!</strong>
+    </div>
+    <div style="font-size: 12px; opacity: 0.9;">
+      Only ${applyRate.toFixed(1)}% apply rate - Great opportunity!
+    </div>
+    <style>
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    </style>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    notification.style.animation = 'slideIn 0.3s ease-out reverse';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 5000);
+  
+  console.log('🎯 Cold job notification shown');
 }
 
 console.log('✅ Extension ready - will try direct API calls and script extraction');

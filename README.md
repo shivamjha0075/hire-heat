@@ -1,23 +1,46 @@
-# 🔥 HireHeat - Job Competition Tracker
+# 🔥 HireHeat - Advanced Job Competition Tracker
 
-A Chrome browser extension that reveals the real competition heat for LinkedIn job postings by showing actual application counts, view counts, and apply rates.
+A powerful Chrome browser extension that reveals the real competition heat for LinkedIn job postings with advanced analytics, trends tracking, and smart notifications.
 
-## Features
+## ✨ Key Features
 
-- **🌡️ Heat Level Detection**: Automatically categorizes jobs as COLD, WARM, or HOT based on competition
-- **📊 Real LinkedIn Data**: Uses LinkedIn's internal API to get actual application counts and view statistics  
-- **🎯 Smart Visual Indicators**: Color-coded heat levels with emojis (❄️ Cold, 🔥 Warm, 🌡️ Hot)
-- **📈 Competition Analysis**: Shows apply rates to help you identify low-competition opportunities
-- **💾 Job History**: Track and compare competition levels across multiple job postings
-- **🚀 Instant Insights**: See competition heat the moment you view any LinkedIn job posting
+### 🌡️ Smart Heat Detection
+- **Customizable Thresholds**: Set your own cold/warm/hot competition levels
+- **Real-time Analysis**: Instant competition assessment on any LinkedIn job posting
+- **Visual Heat Indicators**: Color-coded badges with intuitive emojis (❄️ Cold, 🔥 Warm, 🌡️ Hot)
 
-## Installation
+### 📊 Advanced Analytics
+- **Competition Trends**: Track job market competition patterns over time
+- **Data Export**: Export your job tracking data to CSV for analysis
+- **Smart Filtering**: Filter jobs by competition level (Cold/Warm/Hot)
+- **Statistical Insights**: Average competition rates, cold job discovery metrics
 
-1. Clone or download this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right corner
-4. Click "Load unpacked" and select the extension folder
-5. The extension icon should appear in your Chrome toolbar
+### 🎯 Opportunity Discovery
+- **Cold Job Alerts**: Get notified about low-competition opportunities
+- **Apply Rate Analysis**: See exact application-to-view ratios
+- **Best Opportunities First**: Jobs sorted by competition level for optimal targeting
+
+### 🔧 Customization & Control
+- **Settings Dashboard**: Comprehensive settings panel for personalization
+- **Auto-refresh Control**: Configurable data refresh intervals
+- **Data Retention**: Customizable data storage duration
+- **Notification Preferences**: Toggle alerts on/off
+
+## 🚀 Installation
+
+1. **Download**: Clone or download this repository to your computer
+2. **Chrome Extensions**: Open Chrome and navigate to `chrome://extensions/`
+3. **Developer Mode**: Enable "Developer mode" toggle in the top right corner
+4. **Load Extension**: Click "Load unpacked" and select the extension folder
+5. **Ready to Go**: The HireHeat icon will appear in your Chrome toolbar
+
+## 🎮 Quick Start
+
+1. **Visit LinkedIn**: Navigate to any LinkedIn job posting
+2. **Automatic Analysis**: HireHeat instantly analyzes competition and displays heat level
+3. **View Dashboard**: Click the extension icon to see your tracking history
+4. **Explore Trends**: Use the trends page to analyze competition patterns
+5. **Customize Settings**: Access settings to personalize your experience
 
 ## Usage
 
@@ -53,13 +76,29 @@ The extension uses:
 - **Host Permissions**: LinkedIn.com domains only
 - **Storage**: Chrome's local storage API
 
-## Files Structure
+## 📁 Project Structure
 
-- `manifest.json` - Extension configuration
-- `content.js` - Main tracking logic injected into LinkedIn pages
-- `popup.html/js` - Extension popup interface
-- `styles.css` - Styling for click counter badges
-- `README.md` - This documentation
+```
+hireheat/
+├── manifest.json          # Extension configuration
+├── linkedin-tracker.js    # Main tracking logic for LinkedIn pages
+├── background-simple.js   # Background service worker
+├── popup.html/js          # Extension popup interface
+├── options.html/js        # Settings page
+├── trends.html/js         # Analytics and trends dashboard
+├── icons/                # Extension icons
+└── README.md             # Documentation
+```
+
+## 🆕 What's New in v2.0
+
+- **📈 Trends Dashboard**: Comprehensive analytics with charts and insights
+- **⚙️ Advanced Settings**: Customizable thresholds and preferences
+- **🔔 Smart Notifications**: Get alerted about cold job opportunities
+- **📊 Data Export**: Export tracking data to CSV format
+- **🎯 Better Filtering**: Filter jobs by competition level
+- **🔧 Background Processing**: Improved performance and reliability
+- **📱 Enhanced UI**: Modern, responsive design with better UX
 
 ## Troubleshooting
 
