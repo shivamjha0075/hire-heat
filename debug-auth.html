@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireHeat Authentication Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 HireHeat Authentication Debug Tool</h1>
+    
+    <div class="debug-section">
+        <h2>Environment Check</h2>
+        <div id="env-status"></div>
+        <button onclick="checkEnvironment()">Check Environment</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Supabase Configuration</h2>
+        <div id="supabase-status"></div>
+        <button onclick="checkSupabase()">Test Supabase Connection</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Google OAuth Test</h2>
+        <div id="oauth-status"></div>
+        <button onclick="testGoogleOAuth()">Test Google OAuth</button>
+        <button onclick="checkAuthState()">Check Auth State</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Extension Context</h2>
+        <div id="extension-status"></div>
+        <button onclick="checkExtensionContext()">Check Extension Context</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Debug Logs</h2>
+        <div id="debug-logs"></div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script src="supabase-js.min.js"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        let debugLogs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push({ timestamp, message, type });
+            updateDebugLogs();
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateDebugLogs() {
+            const logsDiv = document.getElementById('debug-logs');
+            logsDiv.innerHTML = debugLogs.map(log => 
+                `<div class="test-result">
+                    <strong>[${log.timestamp}]</strong> ${log.message}
+                </div>`
+            ).join('');
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function checkEnvironment() {
+            log('Checking environment...', 'info');
+            
+            const checks = {
+                'Chrome Extension': typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id,
+                'Supabase Library': typeof window.supabase !== 'undefined',
+                'Extension ID': chrome?.runtime?.id || 'Not available',
+                'Extension URL': chrome?.runtime?.getURL ? chrome.runtime.getURL('') : 'Not available',
+                'User Agent': navigator.userAgent.includes('Chrome')
+            };
+
+            let html = '<h3>Environment Status:</h3>';
+            for (const [check, result] of Object.entries(checks)) {
+                const status = result ? '✅' : '❌';
+                html += `<div>${status} <strong>${check}:</strong> ${result}</div>`;
+                log(`${check}: ${result}`, result ? 'success' : 'error');
+            }
+
+            showStatus('env-status', html, 'info');
+        }
+
+        async function checkSupabase() {
+            log('Testing Supabase connection...', 'info');
+            
+            try {
+                const client = getSupabaseClient();
+                if (!client) {
+                    throw new Error('Failed to initialize Supabase client');
+                }
+
+                log('Supabase client initialized successfully', 'success');
+                
+                // Test connection
+                const { data, error } = await client.from('users').select('count').limit(1);
+                
+                if (error && error.code !== 'PGRST116') { // PGRST116 is "relation does not exist" which is expected if schema not set up
+                    throw error;
+                }
+
+                showStatus('supabase-status', 
+                    `<div class="status success">✅ Supabase connection successful</div>
+                     <div><strong>URL:</strong> ${SUPABASE_CONFIG.url}</div>
+                     <div><strong>Status:</strong> Connected</div>`, 
+                    'success');
+                
+                log('Supabase connection test passed', 'success');
+                
+            } catch (error) {
+                log(`Supabase error: ${error.message}`, 'error');
+                showStatus('supabase-status', 
+                    `<div class="status error">❌ Supabase connection failed: ${error.message}</div>`, 
+                    'error');
+            }
+        }
+
+        async function testGoogleOAuth() {
+            log('Testing Google OAuth...', 'info');
+            
+            try {
+                const isExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+                
+                if (!isExtension) {
+                    throw new Error('Must be run as Chrome extension for OAuth to work');
+                }
+
+                log('Extension context confirmed', 'success');
+                
+                const client = getSupabaseClient();
+                if (!client) {
+                    throw new Error('Supabase client not available');
+                }
+
+                log('Attempting Google OAuth...', 'info');
+                
+                // This will trigger the OAuth flow
+                const { data, error } = await client.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: chrome.runtime.getURL('popup.html')
+                    }
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                log('OAuth request initiated successfully', 'success');
+                showStatus('oauth-status', 
+                    `<div class="status success">✅ OAuth flow initiated</div>
+                     <div><strong>Redirect URL:</strong> ${chrome.runtime.getURL('popup.html')}</div>`, 
+                    'success');
+                
+            } catch (error) {
+                log(`OAuth error: ${error.message}`, 'error');
+                showStatus('oauth-status', 
+                    `<div class="status error">❌ OAuth failed: ${error.message}</div>
+                     <div><strong>Details:</strong> ${error.details || 'No additional details'}</div>`, 
+                    'error');
+            }
+        }
+
+        async function checkAuthState() {
+            log('Checking current auth state...', 'info');
+            
+            try {
+                const client = getSupabaseClient();
+                const { data: { user }, error } = await client.auth.getUser();
+                
+                if (error) {
+                    throw error;
+                }
+
+                if (user) {
+                    log(`User authenticated: ${user.email}`, 'success');
+                    showStatus('oauth-status', 
+                        `<div class="status success">✅ User is authenticated</div>
+                         <div><strong>Email:</strong> ${user.email}</div>
+                         <div><strong>ID:</strong> ${user.id}</div>
+                         <div><strong>Provider:</strong> ${user.app_metadata.provider}</div>`, 
+                        'success');
+                } else {
+                    log('No authenticated user found', 'warning');
+                    showStatus('oauth-status', 
+                        `<div class="status warning">⚠️ No authenticated user</div>`, 
+                        'warning');
+                }
+                
+            } catch (error) {
+                log(`Auth state check error: ${error.message}`, 'error');
+                showStatus('oauth-status', 
+                    `<div class="status error">❌ Auth state check failed: ${error.message}</div>`, 
+                    'error');
+            }
+        }
+
+        function checkExtensionContext() {
+            log('Checking extension context...', 'info');
+            
+            const extensionChecks = {
+                'Chrome API': typeof chrome !== 'undefined',
+                'Runtime API': chrome?.runtime !== undefined,
+                'Extension ID': chrome?.runtime?.id || 'Not available',
+                'Extension URL': chrome?.runtime?.getURL ? chrome.runtime.getURL('') : 'Not available',
+                'Identity Permission': chrome?.identity !== undefined,
+                'Storage Permission': chrome?.storage !== undefined
+            };
+
+            let html = '<h3>Extension Context:</h3>';
+            for (const [check, result] of Object.entries(extensionChecks)) {
+                const status = result && result !== 'Not available' ? '✅' : '❌';
+                html += `<div>${status} <strong>${check}:</strong> ${result}</div>`;
+                log(`${check}: ${result}`, result && result !== 'Not available' ? 'success' : 'error');
+            }
+
+            showStatus('extension-status', html, 'info');
+        }
+
+        // Auto-run environment check on load
+        window.addEventListener('load', () => {
+            log('Debug tool loaded', 'info');
+            checkEnvironment();
+        });
+    </script>
+</body>
+</html>

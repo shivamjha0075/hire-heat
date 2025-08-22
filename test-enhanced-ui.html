@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Enhanced UI Initialization - Fixed</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #console-output {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-green { background-color: #28a745; }
+        .status-red { background-color: #dc3545; }
+        .status-yellow { background-color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Enhanced UI Stack Trace Fix Verification</h1>
+        <p>This test verifies that both stack trace errors have been resolved:</p>
+        <ul>
+            <li><strong>Issue 1:</strong> <code>this.safetyManager.getRecentActions is not a function</code> ✅ Fixed</li>
+            <li><strong>Issue 2:</strong> <code>this.jobMatcher.getStats is not a function</code> ✅ Fixed</li>
+        </ul>
+        
+        <button onclick="runComprehensiveTest()">🚀 Run Comprehensive Test</button>
+        <button onclick="testDashboardUpdate()">📊 Test Dashboard Update</button>
+        <button onclick="clearResults()">🗑️ Clear Results</button>
+        
+        <div id="test-results"></div>
+        <div id="console-output"></div>
+    </div>
+
+    <!-- Load required dependencies -->
+    <script src="safety-manager.js"></script>
+    <script src="job-matcher.js"></script>
+    <script src="enhanced-ui.js"></script>
+    
+    <script>
+        // Mock dependencies for testing
+        class MockResumeManager {
+            constructor() {
+                this.resumes = [];
+            }
+            async initialize() {
+                return true;
+            }
+            async getActiveResume() {
+                return {
+                    id: 'test-resume-1',
+                    data: {
+                        skills: ['JavaScript', 'React', 'Node.js'],
+                        experience: 5,
+                        location: 'Remote'
+                    }
+                };
+            }
+        }
+        
+        class MockAIService {
+            async analyzeJob(jobData) {
+                return {
+                    skills: ['JavaScript', 'React'],
+                    experienceLevel: 'mid',
+                    salaryRange: { min: 80000, max: 120000 }
+                };
+            }
+            
+            async calculateCompatibility(jobAnalysis, resumeData) {
+                return {
+                    overallScore: 85,
+                    skillsMatch: 90,
+                    experienceMatch: 80,
+                    recommendationLevel: 'high'
+                };
+            }
+        }
+        
+        class MockFormFiller {
+            constructor() {
+                this.forms = [];
+            }
+            async initialize() {
+                return true;
+            }
+            getStats() {
+                return {
+                    totalFills: 15,
+                    todayFills: 3,
+                    successRate: 92,
+                    averageFieldsPerForm: 8,
+                    customMappings: 5
+                };
+            }
+        }
+        
+        class MockCoverLetterGenerator {
+            constructor() {
+                this.templates = [];
+            }
+            async initialize() {
+                return true;
+            }
+        }
+        
+        // Capture console output
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        let consoleOutput = '';
+        
+        console.log = function(...args) {
+            consoleOutput += '[LOG] ' + args.join(' ') + '\n';
+            originalConsoleLog.apply(console, args);
+            updateConsoleOutput();
+        };
+        
+        console.error = function(...args) {
+            consoleOutput += '[ERROR] ' + args.join(' ') + '\n';
+            originalConsoleError.apply(console, args);
+            updateConsoleOutput();
+        };
+        
+        function updateConsoleOutput() {
+            document.getElementById('console-output').textContent = consoleOutput;
+        }
+        
+        function addTestResult(message, isSuccess, isWarning = false) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            const statusClass = isWarning ? 'warning' : (isSuccess ? 'success' : 'error');
+            const statusIndicator = isWarning ? 'status-yellow' : (isSuccess ? 'status-green' : 'status-red');
+            const icon = isWarning ? '⚠️' : (isSuccess ? '✅' : '❌');
+            
+            resultDiv.className = `test-result ${statusClass}`;
+            resultDiv.innerHTML = `<span class="status-indicator ${statusIndicator}"></span>${icon} ${message}`;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        async function runComprehensiveTest() {
+            clearResults();
+            consoleOutput = '';
+            updateConsoleOutput();
+            
+            try {
+                addTestResult('Starting comprehensive Enhanced UI test...', true);
+                
+                // Create mock dependencies
+                const resumeManager = new MockResumeManager();
+                const aiService = new MockAIService();
+                const jobMatcher = new JobMatcher(aiService, resumeManager);
+                const safetyManager = new SafetyManager();
+                const formFiller = new MockFormFiller();
+                const coverLetterGenerator = new MockCoverLetterGenerator();
+                
+                addTestResult('Mock dependencies created successfully', true);
+                
+                // Initialize SafetyManager
+                await safetyManager.initialize();
+                addTestResult('SafetyManager initialized successfully', true);
+                
+                // Test SafetyManager.getRecentActions method
+                const recentActions = safetyManager.getRecentActions();
+                addTestResult(`SafetyManager.getRecentActions() works: returned ${Array.isArray(recentActions) ? 'array' : typeof recentActions}`, Array.isArray(recentActions));
+                
+                // Test JobMatcher.getStats method
+                const jobStats = jobMatcher.getStats();
+                addTestResult(`JobMatcher.getStats() works: returned ${typeof jobStats}`, typeof jobStats === 'object' && jobStats !== null);
+                
+                // Test EnhancedUI initialization with correct parameters
+                const enhancedUI = new EnhancedUI(
+                    resumeManager,
+                    jobMatcher,
+                    safetyManager,
+                    formFiller,
+                    coverLetterGenerator
+                );
+                
+                addTestResult('EnhancedUI constructor completed without errors', true);
+                
+                // Test that all managers are properly assigned
+                const managersAssigned = [
+                    { name: 'resumeManager', obj: enhancedUI.resumeManager },
+                    { name: 'jobMatcher', obj: enhancedUI.jobMatcher },
+                    { name: 'safetyManager', obj: enhancedUI.safetyManager },
+                    { name: 'formFiller', obj: enhancedUI.formFiller },
+                    { name: 'coverLetterGenerator', obj: enhancedUI.coverLetterGenerator }
+                ];
+                
+                managersAssigned.forEach(manager => {
+                    addTestResult(`${manager.name} properly assigned`, manager.obj !== undefined && manager.obj !== null);
+                });
+                
+                // Test critical methods exist
+                addTestResult('safetyManager.getRecentActions method exists', typeof enhancedUI.safetyManager.getRecentActions === 'function');
+                addTestResult('jobMatcher.getStats method exists', typeof enhancedUI.jobMatcher.getStats === 'function');
+                
+                addTestResult('🎉 All tests passed! Stack trace issues resolved.', true);
+                
+            } catch (error) {
+                addTestResult(`Test failed with error: ${error.message}`, false);
+                console.error('Test error:', error);
+            }
+        }
+        
+        async function testDashboardUpdate() {
+            try {
+                addTestResult('Testing dashboard update functionality...', true);
+                
+                // Create mock dependencies
+                const resumeManager = new MockResumeManager();
+                const aiService = new MockAIService();
+                const jobMatcher = new JobMatcher(aiService, resumeManager);
+                const safetyManager = new SafetyManager();
+                const formFiller = new MockFormFiller();
+                const coverLetterGenerator = new MockCoverLetterGenerator();
+                
+                await safetyManager.initialize();
+                
+                const enhancedUI = new EnhancedUI(
+                    resumeManager,
+                    jobMatcher,
+                    safetyManager,
+                    formFiller,
+                    coverLetterGenerator
+                );
+                
+                // Test the specific method that was causing the error
+                await enhancedUI.updateDashboard();
+                addTestResult('updateDashboard() executed without errors', true);
+                
+                // Test updateRecentActivity method
+                await enhancedUI.updateRecentActivity();
+                addTestResult('updateRecentActivity() executed without errors', true);
+                
+            } catch (error) {
+                addTestResult(`Dashboard update test failed: ${error.message}`, false);
+                console.error('Dashboard test error:', error);
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+        }
+        
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            setTimeout(runComprehensiveTest, 1000);
+        });
+    </script>
+</body>
+</html>

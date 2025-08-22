@@ -12,12 +12,24 @@ let settings = {
 };
 
 // Load settings from storage
-chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
-  if (response) {
-    settings = { ...settings, ...response };
-    console.log('⚙️ Settings loaded:', settings);
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  try {
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log('Extension context invalidated, using default settings');
+        return;
+      }
+      if (response) {
+        settings = { ...settings, ...response };
+        console.log('⚙️ Settings loaded:', settings);
+      }
+    });
+  } catch (error) {
+    console.log('Failed to load settings, using defaults:', error.message);
   }
-});
+} else {
+  console.log('Chrome runtime not available, using default settings');
+}
 
 // Suppress the chrome-extension://invalid/ error spam
 const originalConsoleError = console.error;
@@ -602,23 +614,46 @@ function extractFromWindowObjects() {
   return false;
 }
 
+// Check if we should run on this page
+function isJobPage() {
+  const url = window.location.href;
+  return url.includes('/jobs/') || url.includes('currentJobId=') || url.includes('localhost');
+}
+
 // Monitor job changes and fetch data
-let currentJobId = getJobId();
+let trackerCurrentJobId = null;
 let lastProcessedJob = null;
 let processingInProgress = false;
 let retryCount = 0;
 const MAX_RETRIES = 3;
 let isExtensionActive = true; // Default to active
 
+// Only initialize job ID if we're on a job page
+if (isJobPage()) {
+  trackerCurrentJobId = getJobId();
+}
+
 // Extension state management
 function getExtensionState() {
   return new Promise((resolve) => {
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.local.get(['hireHeatActive'], (result) => {
-        const isActive = result.hireHeatActive !== false; // Default to true if not set
-        isExtensionActive = isActive;
-        resolve(isActive);
-      });
+      try {
+        chrome.storage.local.get(['hireHeatActive'], (result) => {
+          if (chrome.runtime.lastError) {
+            console.log('Extension context error, defaulting to active state');
+            isExtensionActive = true;
+            resolve(true);
+            return;
+          }
+          const isActive = result.hireHeatActive !== false; // Default to true if not set
+          isExtensionActive = isActive;
+          resolve(isActive);
+        });
+      } catch (error) {
+        console.log('Failed to get extension state:', error.message);
+        isExtensionActive = true;
+        resolve(true);
+      }
     } else {
       // Fallback if chrome.storage is not available
       isExtensionActive = true;
@@ -735,25 +770,26 @@ let domObserver;
 function startMonitoring() {
   logActivity('🚀 Starting HireHeat monitoring system', 'info');
   
+  // Initialize current job ID to prevent initial false positives
+  trackerCurrentJobId = getJobId();
+  
   // Method 1: URL polling (more frequent for SPA)
   urlCheckInterval = setInterval(() => {
     const newJobId = getJobId();
-    if (newJobId !== currentJobId) {
-      logActivity(`🔄 Job change detected: ${currentJobId} -> ${newJobId}`, 'info');
-      currentJobId = newJobId;
-      if (newJobId) {
-        processJobChange();
-      }
+    if (newJobId && newJobId !== trackerCurrentJobId) {
+      logActivity(`🔄 Job change detected: ${trackerCurrentJobId} -> ${newJobId}`, 'info');
+      trackerCurrentJobId = newJobId;
+      processJobChange();
     }
-  }, 500); // Check every 500ms for faster detection
+  }, 1000); // Reduced frequency to 1 second to prevent spam
   
   // Method 1.5: Listen for navigation events (LinkedIn SPA)
   window.addEventListener('popstate', () => {
     setTimeout(() => {
       const newJobId = getJobId();
-      if (newJobId && newJobId !== currentJobId) {
+      if (newJobId && newJobId !== trackerCurrentJobId) {
         logActivity(`🔄 Navigation detected new job: ${newJobId}`, 'info');
-        currentJobId = newJobId;
+        trackerCurrentJobId = newJobId;
         processJobChange();
       }
     }, 500);
@@ -767,9 +803,9 @@ function startMonitoring() {
     originalPushState.apply(history, args);
     setTimeout(() => {
       const newJobId = getJobId();
-      if (newJobId && newJobId !== currentJobId) {
+      if (newJobId && newJobId !== trackerCurrentJobId) {
         logActivity(`🔄 PushState detected new job: ${newJobId}`, 'info');
-        currentJobId = newJobId;
+        trackerCurrentJobId = newJobId;
         processJobChange();
       }
     }, 500);
@@ -779,9 +815,9 @@ function startMonitoring() {
     originalReplaceState.apply(history, args);
     setTimeout(() => {
       const newJobId = getJobId();
-      if (newJobId && newJobId !== currentJobId) {
+      if (newJobId && newJobId !== trackerCurrentJobId) {
         logActivity(`🔄 ReplaceState detected new job: ${newJobId}`, 'info');
-        currentJobId = newJobId;
+        trackerCurrentJobId = newJobId;
         processJobChange();
       }
     }, 500);
@@ -813,9 +849,9 @@ function startMonitoring() {
       
       if (shouldCheck) {
         const newJobId = getJobId();
-        if (newJobId && newJobId !== currentJobId) {
+        if (newJobId && newJobId !== trackerCurrentJobId) {
           logActivity(`🔄 DOM change detected new job: ${newJobId}`, 'info');
-          currentJobId = newJobId;
+          trackerCurrentJobId = newJobId;
           processJobChange();
         }
       }
@@ -835,7 +871,13 @@ let initializationAttempts = 0;
 const MAX_INIT_ATTEMPTS = 3;
 
 async function initializeExtension() {
-  // Check extension state first
+  // Check if we should run on this page first
+  if (!isJobPage()) {
+    logActivity('❌ Not on a job page, skipping initialization', 'info');
+    return;
+  }
+  
+  // Check extension state
   const isActive = await getExtensionState();
   if (!isActive) {
     logActivity('🔇 Extension is inactive, skipping initialization', 'info');
@@ -845,16 +887,16 @@ async function initializeExtension() {
   initializationAttempts++;
   logActivity(`🔥 HireHeat extension initialized (attempt ${initializationAttempts})`, 'info');
   
-  currentJobId = getJobId();
-  logActivity(`Initial job ID: ${currentJobId || 'none'}`, 'info');
+  trackerCurrentJobId = getJobId();
+  logActivity(`Initial job ID: ${trackerCurrentJobId || 'none'}`, 'info');
   
-  // Check if we're actually on LinkedIn
-  if (!window.location.href.includes('linkedin.com')) {
-    logActivity('❌ Not on LinkedIn, skipping initialization', 'warn');
+  // Check if we're actually on LinkedIn or localhost (for testing)
+  if (!window.location.href.includes('linkedin.com') && !window.location.href.includes('localhost')) {
+    logActivity('❌ Not on LinkedIn or localhost, skipping initialization', 'warn');
     return;
   }
   
-  if (currentJobId) {
+  if (trackerCurrentJobId) {
     // Wait a bit for page to fully load before processing
     setTimeout(() => {
       processJobChange();
@@ -877,11 +919,11 @@ async function initializeExtension() {
       return; // Skip health check if extension is inactive
     }
     
-    if (window.location.href.includes('linkedin.com/jobs/') && !currentJobId) {
+    if (isJobPage() && !trackerCurrentJobId) {
       const newJobId = getJobId();
       if (newJobId) {
         logActivity(`🔄 Health check found job ID: ${newJobId}`, 'info');
-        currentJobId = newJobId;
+        trackerCurrentJobId = newJobId;
         processJobChange();
       }
     }
@@ -926,7 +968,7 @@ window.addEventListener('beforeunload', () => {
 // Expose activity log for debugging
 window.HireHeatDebug = {
   getActivityLog: () => activityLog,
-  getCurrentJobId: () => currentJobId,
+  getCurrentJobId: () => trackerCurrentJobId,
   forceProcess: () => processJobChange(),
   clearLog: () => { activityLog = []; }
 };
@@ -1166,17 +1208,24 @@ function forceDataExtraction() {
 }
 
 // Listen for messages from popup or background
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'GET_JOB_DATA') {
-    const jobId = getJobId();
-    if (jobId) {
-      chrome.storage.local.get([jobId], (result) => {
-        sendResponse(result[jobId] || null);
-      });
-    } else {
-      sendResponse(null);
-    }
-    return true; // Keep message channel open for async response
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    try {
+      if (message.type === 'GET_JOB_DATA') {
+        const jobId = getJobId();
+        if (jobId) {
+          chrome.storage.local.get([jobId], (result) => {
+            if (chrome.runtime.lastError) {
+              console.log('Storage error:', chrome.runtime.lastError.message);
+              sendResponse(null);
+              return;
+            }
+            sendResponse(result[jobId] || null);
+          });
+        } else {
+          sendResponse(null);
+        }
+        return true; // Keep message channel open for async response
   } else if (message.type === 'ACTIVATE_HIREHEAT') {
     logActivity('🔥 HireHeat activated via popup', 'info');
     setExtensionState(true);
@@ -1206,7 +1255,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true, message: 'HireHeat deactivated' });
     return true;
   }
-});
+    } catch (error) {
+      console.log('Message handler error:', error.message);
+      sendResponse({ success: false, error: error.message });
+    }
+  });
+} else {
+  console.log('Chrome runtime not available for message handling');
+}
 
 // Store job data for popup and notify background
 function storeJobData(jobData) {

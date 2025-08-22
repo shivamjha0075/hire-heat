@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireHeat - Database Setup Verification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .success {
+            color: #059669;
+            background: #ecfdf5;
+            border-color: #10b981;
+        }
+        .error {
+            color: #dc2626;
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+        .warning {
+            color: #d97706;
+            background: #fffbeb;
+            border-color: #f59e0b;
+        }
+        .log {
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .instructions {
+            background: #eff6ff;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .instructions h4 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+        .instructions ol {
+            margin: 10px 0;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ HireHeat Database Setup Verification</h1>
+        
+        <div class="instructions">
+            <h4>📋 Before Running Tests:</h4>
+            <ol>
+                <li>Make sure you've run the <code>supabase-schema.sql</code> file in your Supabase SQL Editor</li>
+                <li>Ensure Google OAuth is configured in your Supabase Authentication settings</li>
+                <li>Verify your Supabase URL and anon key are correct in <code>supabase-config.js</code></li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h3>🔧 1. Database Connection Test</h3>
+            <p>Test connection to your Supabase database</p>
+            <button onclick="testDatabaseConnection()">Test Connection</button>
+            <div id="connectionResult"></div>
+        </div>
+
+        <div class="section">
+            <h3>📊 2. Database Schema Verification</h3>
+            <p>Check if all required tables exist</p>
+            <button onclick="verifyDatabaseSchema()">Verify Schema</button>
+            <div id="schemaResult"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔄 3. User Creation Trigger Test</h3>
+            <p>Verify the user creation trigger is working</p>
+            <button onclick="testUserCreationTrigger()">Test Trigger</button>
+            <div id="triggerResult"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔐 4. Authentication Flow Test</h3>
+            <p>Test the complete authentication flow</p>
+            <button onclick="testAuthenticationFlow()">Test Auth Flow</button>
+            <div id="authResult"></div>
+        </div>
+
+        <div class="section">
+            <h3>🧹 5. Manual User Creation (If Needed)</h3>
+            <p>Manually create a user entry if the trigger isn't working</p>
+            <button onclick="manualUserCreation()">Create User Manually</button>
+            <div id="manualResult"></div>
+        </div>
+
+        <div class="section">
+            <h3>📝 Debug Log</h3>
+            <div id="debugLog" class="log">Ready to run tests...
+</div>
+        </div>
+    </div>
+
+    <script src="supabase-js.min.js"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        let debugLog = document.getElementById('debugLog');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            debugLog.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        async function testDatabaseConnection() {
+            log('Testing database connection...');
+            try {
+                initializeSupabaseClient();
+                const client = getSupabaseClient();
+                
+                if (!client) {
+                    throw new Error('Failed to initialize Supabase client');
+                }
+                
+                // Test basic connection
+                const { data, error } = await client.from('users').select('count').limit(1);
+                
+                if (error) {
+                    throw error;
+                }
+                
+                log('Database connection successful', 'success');
+                showResult('connectionResult', '✅ Database connection successful!', 'success');
+                
+            } catch (error) {
+                log(`Database connection failed: ${error.message}`, 'error');
+                showResult('connectionResult', `❌ Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function verifyDatabaseSchema() {
+            log('Verifying database schema...');
+            try {
+                const client = getSupabaseClient();
+                if (!client) {
+                    throw new Error('Supabase client not initialized');
+                }
+                
+                const tables = ['users', 'resumes', 'job_applications'];
+                const results = [];
+                
+                for (const table of tables) {
+                    try {
+                        const { data, error } = await client.from(table).select('*').limit(1);
+                        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows (table exists but empty)
+                            throw error;
+                        }
+                        results.push(`✅ Table '${table}' exists`);
+                        log(`Table '${table}' verified`, 'success');
+                    } catch (tableError) {
+                        results.push(`❌ Table '${table}' missing or inaccessible: ${tableError.message}`);
+                        log(`Table '${table}' error: ${tableError.message}`, 'error');
+                    }
+                }
+                
+                const allTablesExist = results.every(r => r.startsWith('✅'));
+                const resultType = allTablesExist ? 'success' : 'error';
+                const resultMessage = results.join('<br>');
+                
+                showResult('schemaResult', resultMessage, resultType);
+                
+                if (allTablesExist) {
+                    log('All required tables exist', 'success');
+                } else {
+                    log('Some tables are missing - please run supabase-schema.sql', 'error');
+                }
+                
+            } catch (error) {
+                log(`Schema verification failed: ${error.message}`, 'error');
+                showResult('schemaResult', `❌ Schema verification failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUserCreationTrigger() {
+            log('Testing user creation trigger...');
+            try {
+                const client = getSupabaseClient();
+                if (!client) {
+                    throw new Error('Supabase client not initialized');
+                }
+                
+                // Check if trigger function exists
+                const { data, error } = await client.rpc('handle_new_user');
+                
+                if (error && error.code === '42883') {
+                    // Function doesn't exist
+                    log('User creation trigger function not found', 'error');
+                    showResult('triggerResult', '❌ User creation trigger not found. Please run the complete supabase-schema.sql file.', 'error');
+                } else {
+                    log('User creation trigger function exists', 'success');
+                    showResult('triggerResult', '✅ User creation trigger function exists', 'success');
+                }
+                
+            } catch (error) {
+                log(`Trigger test failed: ${error.message}`, 'error');
+                showResult('triggerResult', `⚠️ Could not verify trigger: ${error.message}`, 'warning');
+            }
+        }
+
+        async function testAuthenticationFlow() {
+            log('Testing authentication flow...');
+            try {
+                const client = getSupabaseClient();
+                if (!client) {
+                    throw new Error('Supabase client not initialized');
+                }
+                
+                // Check current auth state
+                const { data: { user }, error } = await client.auth.getUser();
+                
+                if (error) {
+                    throw error;
+                }
+                
+                if (user) {
+                    log(`Current user: ${user.email}`, 'success');
+                    
+                    // Check if user exists in database
+                    const { data: dbUser, error: dbError } = await client
+                        .from('users')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single();
+                    
+                    if (dbError && dbError.code !== 'PGRST116') {
+                        throw dbError;
+                    }
+                    
+                    if (dbUser) {
+                        log('User found in database', 'success');
+                        showResult('authResult', `✅ Authentication working! User: ${user.email}<br>✅ User exists in database`, 'success');
+                    } else {
+                        log('User authenticated but not in database', 'warning');
+                        showResult('authResult', `⚠️ User authenticated (${user.email}) but not found in database. Trigger may not be working.`, 'warning');
+                    }
+                } else {
+                    log('No authenticated user', 'warning');
+                    showResult('authResult', '⚠️ No authenticated user. Please sign in through the extension first.', 'warning');
+                }
+                
+            } catch (error) {
+                log(`Authentication test failed: ${error.message}`, 'error');
+                showResult('authResult', `❌ Authentication test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function manualUserCreation() {
+            log('Attempting manual user creation...');
+            try {
+                const client = getSupabaseClient();
+                if (!client) {
+                    throw new Error('Supabase client not initialized');
+                }
+                
+                // Get current auth user
+                const { data: { user }, error: authError } = await client.auth.getUser();
+                
+                if (authError || !user) {
+                    throw new Error('No authenticated user found. Please sign in first.');
+                }
+                
+                log(`Creating database entry for user: ${user.email}`);
+                
+                // Create user in database
+                const { data: newUser, error: insertError } = await client
+                    .from('users')
+                    .insert({
+                        id: user.id,
+                        email: user.email,
+                        full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+                        avatar_url: user.user_metadata?.avatar_url || null
+                    })
+                    .select()
+                    .single();
+                
+                if (insertError) {
+                    if (insertError.code === '23505') {
+                        // User already exists
+                        log('User already exists in database', 'warning');
+                        showResult('manualResult', '⚠️ User already exists in database', 'warning');
+                    } else {
+                        throw insertError;
+                    }
+                } else {
+                    log('User created successfully in database', 'success');
+                    showResult('manualResult', `✅ User created successfully: ${newUser.email}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Manual user creation failed: ${error.message}`, 'error');
+                showResult('manualResult', `❌ Manual user creation failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            log('Database verification tool loaded');
+            log('Click the buttons above to run tests');
+        });
+    </script>
+</body>
+</html>

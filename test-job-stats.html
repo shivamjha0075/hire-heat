@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireHeat Job Stats Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f3f2ef;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .jobs-unified-top-card__content {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            text-align: center;
+            color: #666;
+        }
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .test-button {
+            background: #0073b1;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .test-button:hover {
+            background: #005885;
+        }
+        .test-button.success {
+            background: #22c55e;
+        }
+        .test-button.warning {
+            background: #f59e0b;
+        }
+        .test-button.danger {
+            background: #ef4444;
+        }
+        .info-panel {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .job-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 HireHeat Job Statistics Test</h1>
+        
+        <div class="job-info">
+            <h3>Test Job: Senior Software Engineer at TechCorp</h3>
+            <p>This page tests the HireHeat job statistics display functionality that shows application and view counts for LinkedIn job postings.</p>
+        </div>
+        
+        <div class="jobs-unified-top-card__content">
+            <p>📊 Job statistics will appear here when you click the test buttons below</p>
+        </div>
+        
+        <div class="test-controls">
+            <button class="test-button success" onclick="testColdJob()">❄️ Test Cold Job (Low Competition)</button>
+            <button class="test-button warning" onclick="testWarmJob()">🔥 Test Warm Job (Moderate Competition)</button>
+            <button class="test-button danger" onclick="testHotJob()">🌡️ Test Hot Job (High Competition)</button>
+            <button class="test-button" onclick="testCustomJob()">⚙️ Test Custom Data</button>
+            <button class="test-button" onclick="clearStats()">🗑️ Clear Stats</button>
+        </div>
+        
+        <div class="info-panel" id="test-log">
+            <strong>Test Log:</strong><br>
+            Ready to test job statistics display...
+        </div>
+    </div>
+    
+    <!-- Load HireHeat linkedin-tracker.js -->
+    <script src="linkedin-tracker.js"></script>
+    
+    <script>
+        function log(message) {
+            const logElement = document.getElementById('test-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `<br>[${timestamp}] ${message}`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function testColdJob() {
+            const jobData = {
+                applies: 12,
+                views: 450,
+                jobId: '1234567890',
+                title: 'Senior Software Engineer',
+                company: 'TechCorp Inc.',
+                lastUpdated: Date.now(),
+                url: window.location.href
+            };
+            
+            if (typeof showJobStats === 'function') {
+                showJobStats(jobData);
+                log('✅ Cold job stats displayed (12 applies, 450 views = 2.7% apply rate)');
+            } else {
+                log('❌ showJobStats function not found');
+            }
+        }
+        
+        function testWarmJob() {
+            const jobData = {
+                applies: 47,
+                views: 520,
+                jobId: '2345678901',
+                title: 'Senior Software Engineer',
+                company: 'TechCorp Inc.',
+                lastUpdated: Date.now(),
+                url: window.location.href
+            };
+            
+            if (typeof showJobStats === 'function') {
+                showJobStats(jobData);
+                log('✅ Warm job stats displayed (47 applies, 520 views = 9.0% apply rate)');
+            } else {
+                log('❌ showJobStats function not found');
+            }
+        }
+        
+        function testHotJob() {
+            const jobData = {
+                applies: 156,
+                views: 780,
+                jobId: '3456789012',
+                title: 'Senior Software Engineer',
+                company: 'TechCorp Inc.',
+                lastUpdated: Date.now(),
+                url: window.location.href
+            };
+            
+            if (typeof showJobStats === 'function') {
+                showJobStats(jobData);
+                log('✅ Hot job stats displayed (156 applies, 780 views = 20.0% apply rate)');
+            } else {
+                log('❌ showJobStats function not found');
+            }
+        }
+        
+        function testCustomJob() {
+            const applies = prompt('Enter number of applications:', '75');
+            const views = prompt('Enter number of views:', '600');
+            
+            if (applies && views) {
+                const jobData = {
+                    applies: parseInt(applies),
+                    views: parseInt(views),
+                    jobId: '4567890123',
+                    title: 'Senior Software Engineer',
+                    company: 'TechCorp Inc.',
+                    lastUpdated: Date.now(),
+                    url: window.location.href
+                };
+                
+                if (typeof showJobStats === 'function') {
+                    showJobStats(jobData);
+                    const applyRate = ((parseInt(applies) / parseInt(views)) * 100).toFixed(1);
+                    log(`✅ Custom job stats displayed (${applies} applies, ${views} views = ${applyRate}% apply rate)`);
+                } else {
+                    log('❌ showJobStats function not found');
+                }
+            }
+        }
+        
+        function clearStats() {
+            const existing = document.querySelector('#job-stats-display');
+            if (existing) {
+                existing.remove();
+                log('🗑️ Job statistics cleared');
+            } else {
+                log('ℹ️ No statistics to clear');
+            }
+        }
+        
+        // Auto-test on page load
+        setTimeout(() => {
+            log('🚀 HireHeat test page loaded');
+            if (typeof showJobStats === 'function') {
+                log('✅ showJobStats function is available');
+                log('📝 Click the test buttons above to see job statistics in action');
+            } else {
+                log('❌ showJobStats function not found - check if linkedin-tracker.js loaded properly');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,25 +1,45 @@
 {
   "manifest_version": 3,
-  "name": "HireHeat",
-  "version": "2.0",
-  "description": "Advanced LinkedIn job competition tracker - see application counts, trends, and find low-competition opportunities",
+  "name": "HireHeat AI Assistant",
+  "version": "3.0",
+  "description": "AI-powered job application assistant with smart form filling, compatibility scoring, and automated cover letter generation",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting",
+    "identity"
   ],
   "host_permissions": [
-    "*://*.linkedin.com/*"
+    "*://*.linkedin.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://*.supabase.co/*",
+    "https://accounts.google.com/*"
   ],
   "content_scripts": [
-    {
-      "matches": ["*://*.linkedin.com/*"],
-      "js": ["linkedin-tracker.js"],
-      "run_at": "document_end"
-    }
-  ],
+      {
+        "matches": ["*://*.linkedin.com/*"],
+        "js": [
+          "error-handler.js",
+          "privacy-security.js",
+          "ai-service.js",
+          "resume-manager.js",
+          "job-matcher.js",
+          "safety-manager.js",
+          "form-filler.js",
+          "cover-letter-generator.js",
+          "linkedin-automation.js",
+          "enhanced-ui.js",
+          "content.js",
+          "linkedin-tracker.js",
+          "test-suite.js"
+        ],
+        "css": ["styles.css"],
+        "run_at": "document_end"
+      }
+    ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "HireHeat - Job Competition Tracker"
+    "default_title": "HireHeat AI Assistant"
   },
   "background": {
     "service_worker": "background-simple.js"
@@ -27,7 +47,7 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["trends.html"],
+      "resources": ["trends.html", "popup.html", "icons/*"],
       "matches": ["<all_urls>"]
     }
   ]

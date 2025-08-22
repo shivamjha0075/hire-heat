@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>HireHeat Auth Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        #results {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 HireHeat Authentication Test</h1>
+    
+    <div class="test-section">
+        <h3>Environment Check</h3>
+        <button onclick="checkEnvironment()">Check Environment</button>
+        <p>This will verify if we're running in the correct context and if all dependencies are loaded.</p>
+    </div>
+    
+    <div class="test-section">
+        <h3>Supabase Configuration Test</h3>
+        <button onclick="testSupabaseConfig()">Test Supabase Config</button>
+        <p>This will test if Supabase is properly configured and can connect.</p>
+    </div>
+    
+    <div class="test-section">
+        <h3>Google OAuth Test</h3>
+        <button onclick="testGoogleAuth()">Test Google OAuth</button>
+        <p><strong>Note:</strong> This will only work when loaded as a Chrome extension!</p>
+    </div>
+    
+    <div id="results"></div>
+    
+    <!-- Load dependencies -->
+    <script src="supabase-js.min.js"></script>
+    <script src="supabase-config.js"></script>
+    
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            results.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            console.log(message);
+        }
+        
+        function checkEnvironment() {
+            log('=== Environment Check ===');
+            
+            // Check if we're in extension context
+            const isExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+            log(`Extension context: ${isExtension}`, isExtension ? 'success' : 'warning');
+            
+            // Check if Supabase is loaded
+            const supabaseLoaded = typeof window.supabase !== 'undefined';
+            log(`Supabase SDK loaded: ${supabaseLoaded}`, supabaseLoaded ? 'success' : 'error');
+            
+            // Check if our config is loaded
+            const configLoaded = typeof signInWithGoogle === 'function';
+            log(`signInWithGoogle function available: ${configLoaded}`, configLoaded ? 'success' : 'error');
+            
+            // Check Supabase config
+            if (typeof SUPABASE_CONFIG !== 'undefined') {
+                log(`Supabase URL: ${SUPABASE_CONFIG.url}`, 'success');
+                log(`Supabase Key: ${SUPABASE_CONFIG.anonKey.substring(0, 20)}...`, 'success');
+            } else {
+                log('SUPABASE_CONFIG not found', 'error');
+            }
+            
+            log('Environment check complete.\n');
+        }
+        
+        async function testSupabaseConfig() {
+            log('=== Supabase Configuration Test ===');
+            
+            try {
+                const client = getSupabaseClient();
+                if (!client) {
+                    log('Failed to get Supabase client', 'error');
+                    return;
+                }
+                
+                log('Supabase client created successfully', 'success');
+                
+                // Test connection by getting the current session
+                const { data: { session }, error } = await client.auth.getSession();
+                if (error) {
+                    log(`Session check error: ${error.message}`, 'warning');
+                } else {
+                    log(`Session status: ${session ? 'Active session found' : 'No active session'}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`Supabase test failed: ${error.message}`, 'error');
+            }
+            
+            log('Supabase configuration test complete.\n');
+        }
+        
+        async function testGoogleAuth() {
+            log('=== Google OAuth Test ===');
+            
+            const isExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+            if (!isExtension) {
+                log('Google OAuth requires Chrome extension context!', 'error');
+                log('To test: Load this extension in Chrome and try again.', 'warning');
+                return;
+            }
+            
+            try {
+                log('Attempting Google sign-in...', 'info');
+                await signInWithGoogle();
+                log('Google sign-in initiated successfully!', 'success');
+            } catch (error) {
+                log(`Google OAuth test failed: ${error.message}`, 'error');
+                
+                // Additional debugging
+                if (error.message.includes('OAuth')) {
+                    log('This might indicate that Google OAuth is not properly configured in Supabase.', 'warning');
+                    log('Check: 1) Supabase Auth settings, 2) Google OAuth credentials, 3) Redirect URLs', 'warning');
+                }
+            }
+            
+            log('Google OAuth test complete.\n');
+        }
+        
+        // Auto-run environment check on load
+        window.addEventListener('load', () => {
+            setTimeout(checkEnvironment, 500);
+        });
+    </script>
+</body>
+</html>

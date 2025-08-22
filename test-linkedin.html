@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Job Test - Software Engineer at TechCorp</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f3f2ef;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .job-header {
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        .job-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #000;
+            margin-bottom: 8px;
+        }
+        .company-name {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .job-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .jobs-unified-top-card__content {
+            margin-bottom: 20px;
+        }
+        .job-description {
+            line-height: 1.6;
+            color: #333;
+        }
+        .debug-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 10000;
+        }
+        .debug-button {
+            background: #0073b1;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 0;
+            display: block;
+            width: 100%;
+        }
+        .debug-button:hover {
+            background: #005885;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="jobs-unified-top-card__content">
+            <div class="job-header">
+                <h1 class="job-title">Senior Software Engineer</h1>
+                <div class="company-name">TechCorp Inc.</div>
+                <div class="job-meta">
+                    <span>San Francisco, CA</span>
+                    <span>Full-time</span>
+                    <span>Posted 2 days ago</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="job-description">
+            <h3>About the Role</h3>
+            <p>We are looking for a Senior Software Engineer to join our growing team. You will be responsible for designing, developing, and maintaining scalable web applications using modern technologies.</p>
+            
+            <h3>Requirements</h3>
+            <ul>
+                <li>5+ years of experience in software development</li>
+                <li>Proficiency in JavaScript, React, and Node.js</li>
+                <li>Experience with cloud platforms (AWS, GCP, Azure)</li>
+                <li>Strong problem-solving skills</li>
+                <li>Bachelor's degree in Computer Science or related field</li>
+            </ul>
+            
+            <h3>What We Offer</h3>
+            <ul>
+                <li>Competitive salary ($120k - $180k)</li>
+                <li>Comprehensive health benefits</li>
+                <li>Flexible work arrangements</li>
+                <li>Professional development opportunities</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="debug-panel">
+        <h4>🔥 HireHeat Debug Panel</h4>
+        <button class="debug-button" onclick="testJobStats()">Test Job Stats Display</button>
+        <button class="debug-button" onclick="forceExtraction()">Force Data Extraction</button>
+        <button class="debug-button" onclick="showDebugInfo()">Show Debug Info</button>
+        <button class="debug-button" onclick="clearStats()">Clear Stats</button>
+        <div id="debug-output" style="margin-top: 10px; font-size: 11px;"></div>
+    </div>
+    
+    <!-- Simulate LinkedIn job data in script tags -->
+    <script type="application/json" id="job-data">
+    {
+        "jobId": "3456789012",
+        "title": "Senior Software Engineer",
+        "company": "TechCorp Inc.",
+        "applies": 47,
+        "views": 892,
+        "numApplicants": 47,
+        "viewCount": 892,
+        "location": "San Francisco, CA",
+        "postedDate": "2 days ago"
+    }
+    </script>
+    
+    <!-- Simulate LinkedIn's data structure -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "identifier": {
+            "@type": "PropertyValue",
+            "name": "LinkedIn Job ID",
+            "value": "3456789012"
+        },
+        "title": "Senior Software Engineer",
+        "hiringOrganization": {
+            "@type": "Organization",
+            "name": "TechCorp Inc."
+        },
+        "jobLocation": {
+            "@type": "Place",
+            "address": "San Francisco, CA"
+        },
+        "applicantLocationRequirements": {
+            "@type": "Country",
+            "name": "United States"
+        },
+        "employmentType": "FULL_TIME",
+        "datePosted": "2024-01-20",
+        "validThrough": "2024-02-20",
+        "description": "We are looking for a Senior Software Engineer...",
+        "baseSalary": {
+            "@type": "MonetaryAmount",
+            "currency": "USD",
+            "value": {
+                "@type": "QuantitativeValue",
+                "minValue": 120000,
+                "maxValue": 180000,
+                "unitText": "YEAR"
+            }
+        }
+    }
+    </script>
+    
+    <!-- Add window data that HireHeat might look for -->
+    <script>
+        window.linkedInJobData = {
+            jobId: '3456789012',
+            applies: 47,
+            views: 892,
+            numApplicants: 47,
+            viewCount: 892,
+            title: 'Senior Software Engineer',
+            company: 'TechCorp Inc.'
+        };
+    </script>
+    
+    <!-- Load HireHeat scripts -->
+    <script src="linkedin-tracker.js"></script>
+    
+    <script>
+        // Simulate LinkedIn URL structure (use hash to avoid security error)
+        window.location.hash = '#/jobs/view/3456789012';
+        
+        // Debug functions
+        function testJobStats() {
+            const jobData = {
+                applies: 47,
+                views: 892,
+                jobId: '3456789012',
+                title: 'Senior Software Engineer',
+                company: 'TechCorp Inc.',
+                lastUpdated: Date.now(),
+                url: window.location.href
+            };
+            
+            if (typeof showJobStats === 'function') {
+                showJobStats(jobData);
+                updateDebugOutput('✅ Job stats displayed successfully');
+            } else {
+                updateDebugOutput('❌ showJobStats function not found');
+            }
+        }
+        
+        function forceExtraction() {
+            if (typeof window.HireHeatDebug !== 'undefined' && window.HireHeatDebug.forceProcess) {
+                window.HireHeatDebug.forceProcess();
+                updateDebugOutput('🔄 Forced data extraction');
+            } else if (typeof forceDataExtraction === 'function') {
+                forceDataExtraction();
+                updateDebugOutput('🔄 Forced data extraction');
+            } else {
+                updateDebugOutput('❌ Force extraction function not found');
+            }
+        }
+        
+        function showDebugInfo() {
+            if (typeof window.HireHeatDebug !== 'undefined') {
+                const log = window.HireHeatDebug.getActivityLog();
+                const currentJob = window.HireHeatDebug.getCurrentJobId();
+                updateDebugOutput(`Current Job: ${currentJob}\nLog entries: ${log.length}`);
+            } else {
+                updateDebugOutput('❌ HireHeatDebug not available');
+            }
+        }
+        
+        function clearStats() {
+            const existing = document.querySelector('#job-stats-display');
+            if (existing) {
+                existing.remove();
+                updateDebugOutput('🗑️ Stats cleared');
+            } else {
+                updateDebugOutput('ℹ️ No stats to clear');
+            }
+        }
+        
+        function updateDebugOutput(message) {
+            const output = document.getElementById('debug-output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML = `[${timestamp}] ${message}<br>` + output.innerHTML;
+            
+            // Keep only last 10 messages
+            const lines = output.innerHTML.split('<br>');
+            if (lines.length > 10) {
+                output.innerHTML = lines.slice(0, 10).join('<br>');
+            }
+        }
+        
+        // Auto-test after page loads
+        setTimeout(() => {
+            updateDebugOutput('🚀 Test page loaded');
+            if (typeof window.HireHeatDebug !== 'undefined') {
+                updateDebugOutput('✅ HireHeat loaded successfully');
+            } else {
+                updateDebugOutput('⚠️ HireHeat not detected');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
